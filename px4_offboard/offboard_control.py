@@ -68,7 +68,7 @@ class OffboardControl(Node):
         self.timer = self.create_timer(timer_period, self.cmdloop_callback)
         self.dt = timer_period
         self.declare_parameter('radius', 10.0)
-        self.declare_parameter('omega', 5.0)
+        self.declare_parameter('omega', 0.5)
         self.declare_parameter('altitude', 5.0)
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
         self.arming_state = VehicleStatus.ARMING_STATE_DISARMED
@@ -78,11 +78,12 @@ class OffboardControl(Node):
         self.radius = self.get_parameter('radius').value
         self.omega = self.get_parameter('omega').value
         self.altitude = self.get_parameter('altitude').value
+        self.get_logger().info("initializing done")
  
     def vehicle_status_callback(self, msg):
         # TODO: handle NED->ENU transformation
-        print("NAV_STATUS: ", msg.nav_state)
-        print("  - offboard status: ", VehicleStatus.NAVIGATION_STATE_OFFBOARD)
+        #self.get_logger().info("NAV_STATUS: %d" % (msg.nav_state))
+        #self.get_logger().info("  - offboard status: %d" %(VehicleStatus.NAVIGATION_STATE_OFFBOARD))
         self.nav_state = msg.nav_state
         self.arming_state = msg.arming_state
 
@@ -94,12 +95,21 @@ class OffboardControl(Node):
         offboard_msg.velocity=False
         offboard_msg.acceleration=False
         self.publisher_offboard_mode.publish(offboard_msg)
+        
+        if(self.nav_state != VehicleStatus.NAVIGATION_STATE_OFFBOARD):
+            self.get_logger().info("NAV_STATUS (14): %d" % (self.nav_state))
+        if(self.arming_state != VehicleStatus.ARMING_STATE_ARMED):
+            self.get_logger().info("ARM_STATUS (2): %d" % (self.arming_state))
+        
         if (self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD and self.arming_state == VehicleStatus.ARMING_STATE_ARMED):
-
+            # ENU to NED in PX4
             trajectory_msg = TrajectorySetpoint()
             trajectory_msg.position[0] = self.radius * np.cos(self.theta)
             trajectory_msg.position[1] = self.radius * np.sin(self.theta)
-            trajectory_msg.position[2] = -self.altitude
+            #trajectory_msg.position[2] = -self.altitude 
+            #trajectory_msg.velocity[0] = self.omega * self.radius
+            #trajectory_msg.yaw = self.theta
+            #trajectory_msg.yawspeed = self.omega
             self.publisher_trajectory.publish(trajectory_msg)
 
             self.theta = self.theta + self.omega * self.dt

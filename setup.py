@@ -28,6 +28,11 @@ setup(
         'console_scripts': [
                 'offboard_control = px4_offboard.offboard_control:main',
                 'visualizer = px4_offboard.visualizer:main',
+                'velocity_control = px4_offboard.velocity_control:main',
+                'pose_control_mavros = px4_offboard.pose_control_mavros:main',
+                'velocity_control_mavros = px4_offboard.velocity_control_mavros:main',
+                'rc_control_mavros = px4_offboard.rc_control_mavros:main',
+                'rc_control_dds = px4_offboard.rc_control_dds:main',
         ],
     },
 )

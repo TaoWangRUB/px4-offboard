@@ -201,6 +201,7 @@ class PX4Visualizer(Node):
         vehicle_pose_msg = vector2PoseMsg(
             "map", self.vehicle_local_position, self.vehicle_attitude
         )
+        # self.get_logger().info("x= %f, y = %f, z = %f" % (self.vehicle_local_position[0], self.vehicle_local_position[1], self.vehicle_local_position[2]))
         self.vehicle_pose_pub.publish(vehicle_pose_msg)
 
         # Publish time history of the vehicle path
