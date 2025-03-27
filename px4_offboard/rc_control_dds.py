@@ -2,7 +2,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleCommand, TrajectorySetpoint, OffboardControlMode, ActuatorMotors, VehicleAttitudeSetpoint, VehicleStatus, VehicleRatesSetpoint
+
 import numpy as np
+from tf_transformations import quaternion_multiply, quaternion_from_euler, euler_from_quaternion
 
 from enum import Enum, auto
 
@@ -59,7 +61,8 @@ class PX4OffboardControl(Node):
         self.status_sub = self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
         
         self.dt = 0.02
-        self.timer = self.create_timer(self.dt, self.publish_velocity_setpoint)
+        #self.timer = self.create_timer(self.dt, self.publish_velocity_setpoint)
+        self.timer = self.create_timer(self.dt, self.publish_attitude_setpoint)
         
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
         self.arming_state = VehicleStatus.ARMING_STATE_DISARMED
@@ -84,8 +87,8 @@ class PX4OffboardControl(Node):
         self.STEER_MAX = 30  # maximum allowed steering angle
         
         # Trajectory setup
-        self.declare_parameter('radius', 50.0)
-        self.declare_parameter('omega', 0.1)
+        self.declare_parameter('radius', 10.0)
+        self.declare_parameter('omega', 0.0)
         self.declare_parameter('altitude', 5.0)
         
         self.theta = 0.0
@@ -254,8 +257,9 @@ class PX4OffboardControl(Node):
             trajectory_msg = TrajectorySetpoint()
             trajectory_msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
             
-            trajectory_msg.velocity[0] = self.omega * self.radius
-            #trajectory_msg.yaw = self.theta
+            trajectory_msg.velocity[0] = self.omega * self.radius * np.sin(self.theta)
+            trajectory_msg.velocity[1] = self.omega * self.radius * np.cos(self.theta)
+            trajectory_msg.yaw = self.theta
             trajectory_msg.yawspeed = self.omega
             self.publisher_trajectory.publish(trajectory_msg)
 
@@ -277,17 +281,22 @@ class PX4OffboardControl(Node):
             # Set the timestamp (in microseconds)
             msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
             
+            # set desired yaw angle in rad
+            self.theta = self.theta + self.omega * self.dt
+            
             # Set a desired quaternion.
             # For a no-rotation (neutral attitude) the quaternion is identity: [w, x, y, z] = [1, 0, 0, 0].
-            msg.q_d = [1.0, 0.0, 0.0, 0.0]
+            q_yaw = quaternion_from_euler(0.0, 0.0, self.theta)  # [x,y,z,w] in ROS format
+            msg.q_d = [q_yaw[3], q_yaw[0], q_yaw[1], q_yaw[2]]  # Convert to PX4 format [w, x, y, z]
+            #self.get_logger().info('yaw = %f' %(self.theta))
             
             # Set yaw rate setpoint (rad/s); adjust this value as needed.
-            msg.yaw_sp_move_rate = 0.0
+            msg.yaw_sp_move_rate = self.omega
             
             # Set thrust command in the body frame.
             # For multicopters, typically thrust_body[2] is negative throttle demand.
             # For a rover, adjust these values based on your vehicle configuration.
-            msg.thrust_body = [0.0, 0.0, 0.0]
+            msg.thrust_body = [0.3, 0.0, 0.0]
             
             # Optional flags:
             msg.reset_integral = False
